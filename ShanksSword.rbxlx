@@ -1,0 +1,517 @@
+<roblox version="4">
+<Item class="Workspace" referent="RBX8"><Properties><string name="Name">Workspace</string></Properties><Item class="Part" referent="RBX6"><Properties><string name="Name">Baseplate</string><bool name="Anchored">true</bool><bool name="CanCollide">true</bool><CoordinateFrame name="CFrame"><X>0</X><Y>-8</Y><Z>0</Z><R00>1</R00><R01>0</R01><R02>0</R02><R10>0</R10><R11>1</R11><R12>0</R12><R20>0</R20><R21>0</R21><R22>1</R22></CoordinateFrame><Vector3 name="size"><X>512</X><Y>16</Y><Z>512</Z></Vector3><Color3uint8 name="Color3uint8">4284115541</Color3uint8></Properties></Item>
+<Item class="SpawnLocation" referent="RBX7"><Properties><string name="Name">Spawn</string><bool name="Anchored">true</bool><bool name="CanCollide">true</bool><CoordinateFrame name="CFrame"><X>0</X><Y>0.5</Y><Z>0</Z><R00>1</R00><R01>0</R01><R02>0</R02><R10>0</R10><R11>1</R11><R12>0</R12><R20>0</R20><R21>0</R21><R22>1</R22></CoordinateFrame><Vector3 name="size"><X>12</X><Y>1</Y><Z>12</Z></Vector3><Color3uint8 name="Color3uint8">4287269514</Color3uint8></Properties></Item>
+</Item>
+<Item class="Lighting" referent="RBX9"><Properties><string name="Name">Lighting</string><string name="TimeOfDay">16:30:00</string><float name="Brightness">2</float></Properties></Item>
+<Item class="StarterPack" referent="RBX10"><Properties><string name="Name">StarterPack</string></Properties><Item class="Tool" referent="RBX5"><Properties><string name="Name">Gryphon</string><bool name="CanBeDropped">false</bool><string name="ToolTip">Shanks Gryphon</string></Properties><Item class="Part" referent="RBX1"><Properties><string name="Name">Handle</string><bool name="Anchored">false</bool><bool name="CanCollide">false</bool><CoordinateFrame name="CFrame"><X>0</X><Y>5</Y><Z>0</Z><R00>1</R00><R01>0</R01><R02>0</R02><R10>0</R10><R11>1</R11><R12>0</R12><R20>0</R20><R21>0</R21><R22>1</R22></CoordinateFrame><Vector3 name="size"><X>0.26</X><Y>1.1</Y><Z>0.26</Z></Vector3><Color3uint8 name="Color3uint8">4280816656</Color3uint8></Properties></Item>
+<Item class="RemoteEvent" referent="RBX2"><Properties><string name="Name">Action</string></Properties></Item>
+<Item class="Script" referent="RBX3"><Properties><string name="Name">SwordServer</string><ProtectedString name="Source">local Players = game:GetService("Players")
+local Debris = game:GetService("Debris")
+local tool = script.Parent
+local handle = tool:WaitForChild("Handle")
+local remote = tool:WaitForChild("Action")
+
+-- الإعدادات
+local SLASH_DAMAGE = {18, 18, 32}
+local HAKI_DAMAGE, HAKI_RADIUS, STUN = 35, 45, 2.5
+local WAVE_DAMAGE, COOLDOWN = 55, 12
+
+-- بناء السيف
+local function piece(size, offset, color, material, class)
+	local p = Instance.new(class or "Part")
+	p.Name, p.Size, p.Color, p.Material = "Blade", size, color, material
+	p.CanCollide, p.CanQuery, p.CanTouch, p.Massless = false, false, false, true
+	p.CFrame = handle.CFrame * offset
+	local w = Instance.new("WeldConstraint")
+	p.Parent = tool
+	w.Part0, w.Part1, w.Parent = handle, p, p
+	return p
+end
+if not tool:FindFirstChild("Blade") then
+	local gold, steel = Color3.fromRGB(214, 170, 55), Color3.fromRGB(205, 210, 220)
+	local metal = Enum.Material.Metal
+	for i = -2, 2 do
+		piece(Vector3.new(.32, .07, .32), CFrame.new(0, i * .2, 0), Color3.fromRGB(130, 20, 25), Enum.Material.Fabric)
+	end
+	piece(Vector3.new(.42, .42, .42), CFrame.new(0, -.65, 0), gold, metal).Shape = Enum.PartType.Ball
+	piece(Vector3.new(.35, .18, 1.25), CFrame.new(0, .6, 0), gold, metal)
+	for _, z in {-.68, .68} do
+		piece(Vector3.new(.3, .3, .3), CFrame.new(0, .66, z), gold, metal).Shape = Enum.PartType.Ball
+	end
+	-- قوس حماية اليد
+	piece(Vector3.new(.12, .5, .1), CFrame.new(0, .35, -.55) * CFrame.Angles(math.rad(15), 0, 0), gold, metal)
+	piece(Vector3.new(.12, .65, .1), CFrame.new(0, -.15, -.55), gold, metal)
+	piece(Vector3.new(.12, .5, .1), CFrame.new(0, -.55, -.33) * CFrame.Angles(math.rad(-50), 0, 0), gold, metal)
+	-- النصل المنحني
+	local cf = CFrame.new(0, .68, 0)
+	for i = 1, 9 do
+		local width = .48 - i * .018
+		cf *= CFrame.Angles(math.rad(1.8), 0, 0)
+		piece(Vector3.new(.1, .5, width), cf * CFrame.new(0, .25, 0), steel, metal)
+		piece(Vector3.new(.115, .5, .07), cf * CFrame.new(0, .25, -width / 2), Color3.new(1, 1, 1), metal)
+		piece(Vector3.new(.12, .5, .06), cf * CFrame.new(0, .25, width * .18), Color3.fromRGB(60, 60, 70), metal)
+		cf *= CFrame.new(0, .48, 0)
+	end
+	piece(Vector3.new(.1, .7, .31), cf * CFrame.new(0, .35, 0), steel, metal, "WedgePart")
+end
+
+local function damage(char, victim, hum, amount)
+	hum:TakeDamage(amount)
+	local hl = Instance.new("Highlight")
+	hl.FillColor, hl.OutlineColor, hl.Parent = Color3.fromRGB(200, 0, 20), Color3.new(0, 0, 0), victim
+	Debris:AddItem(hl, .25)
+	local head = victim:FindFirstChild("Head")
+	if head then
+		local gui = Instance.new("BillboardGui")
+		gui.Size, gui.AlwaysOnTop = UDim2.fromOffset(90, 40), true
+		gui.StudsOffset = Vector3.new(math.random(-2, 2), 2, 0)
+		local t = Instance.new("TextLabel", gui)
+		t.Size, t.BackgroundTransparency, t.Text = UDim2.fromScale(1, 1), 1, "-" .. amount
+		t.Font, t.TextScaled, t.TextStrokeTransparency = Enum.Font.Bangers, true, 0
+		t.TextColor3 = Color3.fromRGB(255, 60, 60)
+		gui.Parent = head
+		Debris:AddItem(gui, .8)
+	end
+end
+
+local function hitParts(char, parts, done, fn)
+	local owner = Players:GetPlayerFromCharacter(char)
+	for _, p in parts do
+		local m = p:FindFirstAncestorOfClass("Model")
+		local h = m and m:FindFirstChildOfClass("Humanoid")
+		if h and m ~= char and h.Health &gt; 0 and not done[m] then
+			done[m] = true
+			local other = Players:GetPlayerFromCharacter(m)
+			if not (owner and other and not owner.Neutral and owner.Team == other.Team) and not m:FindFirstChildOfClass("ForceField") then
+				fn(m, h)
+			end
+		end
+	end
+end
+
+local function freeze(hum, time)
+	if hum:GetAttribute("Frozen") then return end
+	hum:SetAttribute("Frozen", true)
+	local a, b, c = hum.WalkSpeed, hum.JumpPower, hum.JumpHeight
+	hum.WalkSpeed, hum.JumpPower, hum.JumpHeight = 0, 0, 0
+	task.delay(time, function()
+		hum.WalkSpeed, hum.JumpPower, hum.JumpHeight = a, b, c
+		hum.PlatformStand = false
+		hum:SetAttribute("Frozen", nil)
+	end)
+end
+
+local function knock(m, from, power)
+	local root = m:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	local dir = (root.Position - from) * Vector3.new(1, 0, 1)
+	dir = dir.Magnitude &gt; .1 and dir.Unit or Vector3.zAxis
+	local att = Instance.new("Attachment", root)
+	local v = Instance.new("LinearVelocity")
+	v.Attachment0, v.MaxForce = att, 1e6
+	v.VectorVelocity = dir * power + Vector3.new(0, power * .5, 0)
+	v.Parent = att
+	Debris:AddItem(att, .2)
+end
+
+local busy, lastSwing, combo = false, 0, 0
+remote.OnServerEvent:Connect(function(player, action)
+	local char = player.Character
+	if not char or tool.Parent ~= char or busy then return end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not (hum and root) or hum.Health &lt;= 0 or hum.PlatformStand then return end
+	local function alive() return tool.Parent == char and hum.Health &gt; 0 end
+
+	if action == "Slash" then
+		busy = true
+		combo = (os.clock() - lastSwing &lt; 1.2) and combo % 3 + 1 or 1
+		tool:SetAttribute("Combo", combo)
+		tool:SetAttribute("SwingN", (tool:GetAttribute("SwingN") or 0) + 1)
+		task.wait(.2)
+		if alive() then
+			local parts = workspace:GetPartBoundsInBox(root.CFrame * CFrame.new(0, 0, -5), Vector3.new(11, 8, 10))
+			hitParts(char, parts, {}, function(m, h)
+				damage(char, m, h, SLASH_DAMAGE[combo])
+				if combo == 3 then knock(m, root.Position, 55) end
+			end)
+		end
+		task.wait(combo == 3 and .45 or .25)
+		lastSwing = os.clock()
+		busy = false
+	elseif action == "Haki" then
+		if workspace:GetServerTimeNow() &lt; (tool:GetAttribute("ReadyAt") or 0) then return end
+		busy = true
+		tool:SetAttribute("ReadyAt", workspace:GetServerTimeNow() + COOLDOWN)
+		freeze(hum, 2.9)
+		tool:SetAttribute("HakiN", (tool:GetAttribute("HakiN") or 0) + 1)
+		task.wait(1)
+		if alive() then
+			hitParts(char, workspace:GetPartBoundsInRadius(root.Position, HAKI_RADIUS), {}, function(m, h)
+				damage(char, m, h, HAKI_DAMAGE)
+				freeze(h, STUN)
+				h.PlatformStand = true
+				knock(m, root.Position, 45)
+			end)
+			task.wait(1.15)
+		end
+		if alive() then
+			local start = root.CFrame
+			tool:SetAttribute("WaveCF", start)
+			tool:SetAttribute("WaveN", (tool:GetAttribute("WaveN") or 0) + 1)
+			local done = {}
+			for i = 1, 14 do
+				local parts = workspace:GetPartBoundsInBox(start * CFrame.new(0, 0, -i * 6), Vector3.new(18, 12, 8))
+				hitParts(char, parts, done, function(m, h)
+					damage(char, m, h, WAVE_DAMAGE)
+					knock(m, start.Position, 80)
+				end)
+				task.wait(.05)
+			end
+		end
+		task.wait(.2)
+		busy = false
+	end
+end)
+</ProtectedString></Properties></Item>
+<Item class="Script" referent="RBX4"><Properties><string name="Name">SwordClient</string><token name="RunContext">2</token><ProtectedString name="Source">local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+local Lighting = game:GetService("Lighting")
+local tool = script.Parent
+if not tool:IsA("Tool") then return end
+local handle = tool:WaitForChild("Handle")
+local remote = tool:WaitForChild("Action")
+local player = Players.LocalPlayer
+local rng = Random.new()
+local RED, BLACK = Color3.fromRGB(220, 0, 30), Color3.new(0, 0, 0)
+local char, hum, hrp, gui, trail, aura
+local joints, conns = {}, {}
+local anim, animStart = nil, 0
+local shake, nextBolt = 0, 0
+local SHAKE_KEY = game:GetService("HttpService"):GenerateGUID(false)
+
+local function tween(o, t, props) TweenService:Create(o, TweenInfo.new(t), props):Play() end
+local function part(size, cf, color, transparency, life)
+	local p = Instance.new("Part")
+	p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch, p.CastShadow = true, false, false, false, false
+	p.Material, p.Size, p.CFrame, p.Color, p.Transparency = Enum.Material.Neon, size, cf, color, transparency
+	p.Parent = workspace.CurrentCamera
+	Debris:AddItem(p, life)
+	return p
+end
+local function sound(id, volume, speed)
+	local s = Instance.new("Sound")
+	s.SoundId, s.Volume, s.PlaybackSpeed, s.RollOffMaxDistance = "rbxasset://sounds/" .. id, volume, speed, 160
+	s.Parent = handle
+	s:Play()
+	Debris:AddItem(s, 5)
+end
+local function near(pos) return math.clamp(1 - (workspace.CurrentCamera.CFrame.Position - pos).Magnitude / 110, 0, 1) end
+
+-- برق أسود بحواف حمراء
+local function bolt(a, b, thick, jag)
+	local last = a
+	for i = 1, 6 do
+		local nxt = a:Lerp(b, i / 6) + (i &lt; 6 and rng:NextUnitVector() * jag or Vector3.zero)
+		local cf, len = CFrame.lookAt((last + nxt) / 2, nxt), (nxt - last).Magnitude
+		part(Vector3.new(thick, thick, len), cf, BLACK, 0, .1)
+		part(Vector3.new(thick * 2.6, thick * 2.6, len), cf, RED, .65, .1)
+		last = nxt
+	end
+end
+
+local function dome(pos, radius, time, color, transparency)
+	local p = part(Vector3.one * 4, CFrame.new(pos), color, transparency, time)
+	p.Shape, p.Material = Enum.PartType.Ball, Enum.Material.ForceField
+	tween(p, time, {Size = Vector3.one * radius * 2, Transparency = 1})
+end
+
+local function ring(pos, radius, color)
+	local a = Instance.new("CylinderHandleAdornment")
+	a.Adornee, a.CFrame = workspace.Terrain, CFrame.new(pos) * CFrame.Angles(math.pi / 2, 0, 0)
+	a.Height, a.Radius, a.InnerRadius, a.Color3 = .3, 3, 1, color
+	a.Parent = workspace
+	tween(a, .8, {Radius = radius, InnerRadius = radius - .6, Transparency = 1})
+	Debris:AddItem(a, .8)
+end
+
+local function screen(time, tint, contrast)
+	if near(hrp.Position) &lt;= 0 then return end
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.Parent = Lighting
+	tween(cc, .25, {TintColor = tint, Contrast = contrast, Saturation = -.7})
+	task.delay(time, function()
+		tween(cc, .4, {TintColor = Color3.new(1, 1, 1), Contrast = 0, Saturation = 0})
+		Debris:AddItem(cc, .45)
+	end)
+end
+
+local function title(text)
+	if not gui then return end
+	local t = Instance.new("TextLabel")
+	t.AnchorPoint, t.Position, t.Size = Vector2.new(.5, .5), UDim2.fromScale(.5, .25), UDim2.fromScale(.9, .2)
+	t.BackgroundTransparency, t.Text, t.Font, t.TextScaled = 1, text, Enum.Font.Bangers, true
+	t.TextColor3, t.TextStrokeColor3, t.TextStrokeTransparency = BLACK, RED, 0
+	t.Parent = gui
+	tween(t, 1, {Size = UDim2.fromScale(.6, .13)})
+	task.delay(.8, tween, t, .3, {TextTransparency = 1, TextStrokeTransparency = 1})
+	Debris:AddItem(t, 1.2)
+end
+
+-- الوضعيات
+local function R(x, y, z) return CFrame.Angles(math.rad(x), math.rad(y), math.rad(z)) end
+local function Y6(y, out) return R(0, y, 0) * R(-out, 0, 0) end
+local P15 = {
+	idle = {Root = CFrame.new(), Waist = R(0,-15,0), Neck = R(-8,12,0), RightShoulder = R(15,0,28), RightElbow = R(20,0,0), RightWrist = R(-40,0,0),
+		LeftShoulder = R(-8,0,-12), LeftElbow = R(15,0,0), RightHip = R(10,-10,10), LeftHip = R(-8,0,-10), RightKnee = R(-6,0,0), LeftKnee = R(-4,0,0)},
+	w1 = {Waist = R(0,-45,0), Neck = R(0,35,0), RightShoulder = R(0,-15,90), RightElbow = R(15,0,0), RightWrist = R(-65,0,0)},
+	s1 = {Waist = R(-8,45,0), Neck = R(0,-35,0), RightShoulder = R(0,135,85), RightElbow = R(5,0,0), RightWrist = R(-70,0,0)},
+	w3 = {Waist = R(18,0,0), RightShoulder = R(175,0,10), RightElbow = R(35,0,0), RightWrist = R(-20,0,0), LeftShoulder = R(40,0,-30)},
+	s3 = {Root = CFrame.new(0,-.4,0), Waist = R(-35,10,0), RightShoulder = R(40,0,5), RightWrist = R(-75,0,0), LeftShoulder = R(-40,0,-35),
+		RightHip = R(50,0,8), RightKnee = R(-55,0,0), LeftHip = R(-10,0,-10), LeftKnee = R(-30,0,0)},
+	glare = {Root = CFrame.new(0,-.2,0), Waist = R(-12,-10,0), Neck = R(-22,10,0), RightShoulder = R(-5,0,35), RightWrist = R(-55,0,0), LeftShoulder = R(-10,0,-22)},
+	roar = {Waist = R(14,0,0), Neck = R(15,0,0), RightShoulder = R(-15,0,60), RightWrist = R(-50,0,0), LeftShoulder = R(-15,0,-55)},
+}
+P15.w2, P15.s2 = P15.s1, P15.w1
+local P6 = {
+	idle = {RootJoint = R(0,0,-15), Neck = R(8,0,12), ["Right Shoulder"] = R(-28,0,15), ["Left Shoulder"] = R(-10,0,8), ["Right Hip"] = R(-9,0,8), ["Left Hip"] = R(-9,0,8)},
+	w1 = {RootJoint = R(0,0,-45), Neck = R(0,0,35), ["Right Shoulder"] = Y6(-15,90)},
+	s1 = {RootJoint = R(8,0,45), Neck = R(0,0,-35), ["Right Shoulder"] = Y6(135,85)},
+	w3 = {RootJoint = R(-18,0,0), ["Right Shoulder"] = R(-10,0,175)},
+	s3 = {RootJoint = R(35,0,10), ["Right Shoulder"] = R(-5,0,40)},
+	glare = {RootJoint = R(12,0,-10), Neck = R(22,0,10), ["Right Shoulder"] = R(-35,0,-5)},
+	roar = {RootJoint = R(-14,0,0), Neck = R(-15,0,0), ["Right Shoulder"] = R(-60,0,-15), ["Left Shoulder"] = R(-55,0,15)},
+}
+P6.w2, P6.s2 = P6.s1, P6.w1
+local function slashKeys(n) return {{0,"idle"},{.12,"w"..n},{.26,"s"..n},{.45,"s"..n},{.7,"idle"}} end
+local HAKI = {{0,"idle"},{.35,"glare"},{.9,"glare"},{1.05,"roar"},{1.6,"roar"},{1.95,"w3"},{2.15,"s3"},{2.65,"s3"},{2.95,"idle"}}
+
+local function stepAnim()
+	local set = hum.RigType == Enum.HumanoidRigType.R15 and P15 or P6
+	local from, to, a = "idle", "idle", 0
+	if anim then
+		local t = os.clock() - animStart
+		if t &gt;= anim[#anim][1] then anim = nil; trail.Enabled = false
+		else
+			for i = 1, #anim - 1 do
+				local k, n = anim[i], anim[i + 1]
+				if t &gt;= k[1] and t &lt; n[1] then from, to, a = k[2], n[2], (t - k[1]) / (n[1] - k[1]) break end
+			end
+		end
+	end
+	a = a * a * (3 - 2 * a)
+	local moving = hrp.AssemblyLinearVelocity.Magnitude &gt; 2
+	local breathe = R(math.sin(os.clock() * 2) * 1.5, 0, 0)
+	for name, base in set.idle do
+		local j = joints[name]
+		if not j then continue end
+		if moving and not anim and (name:find("Hip") or name:find("Knee") or name:find("Root")) then continue end
+		local goal = (set[from][name] or base):Lerp(set[to][name] or base, a)
+		if name == "Waist" then goal *= breathe end
+		j.Transform = goal
+	end
+end
+
+local function slash()
+	local combo = tool:GetAttribute("Combo") or 1
+	anim, animStart, trail.Enabled = slashKeys(combo), os.clock(), true
+	task.delay(.14, function()
+		if not char then return end
+		sound(combo == 3 and "swordlunge.wav" or "swordslash.wav", 1.5, combo == 3 and .7 or 1.1)
+		local center = hrp.CFrame * CFrame.Angles(0, 0, combo == 3 and math.pi / 2 or (combo == 2 and .25 or -.25))
+		for i = -8, 8 do
+			local cf = center * CFrame.Angles(0, math.rad(i * 8), 0) * CFrame.new(0, 0, -6)
+			local p = part(Vector3.new(1, .12, (1 - math.abs(i) / 9) * 2), cf, i % 2 == 0 and RED or Color3.new(1, 1, 1), .25, .22)
+			tween(p, .22, {CFrame = cf * CFrame.new(0, 0, -2), Transparency = 1})
+		end
+		shake = math.max(shake, (combo == 3 and .6 or .15) * near(hrp.Position))
+	end)
+end
+
+local function haki()
+	anim, animStart = HAKI, os.clock()
+	local c = char
+	sound("action_falling.ogg", 3, .35)
+	screen(1.9, Color3.fromRGB(255, 150, 150), .35)
+	for i = 1, 18 do
+		task.delay(i * .05, function()
+			if char ~= c then return end
+			local pos = hrp.Position
+			for _ = 1, 2 do bolt(pos + rng:NextUnitVector() * 2, pos + rng:NextUnitVector() * (3 + i * .4), .1, .9) end
+			shake = math.max(shake, i * .02 * near(pos))
+			if i % 4 == 0 then sound("swordslash.wav", .7, rng:NextNumber(.4, .7)) end
+		end)
+	end
+	task.delay(1, function()
+		if char ~= c then return end
+		local pos = hrp.Position
+		local floor = pos - Vector3.new(0, 2.8, 0)
+		title("HAOSHOKU HAKI")
+		sound("impact_water.mp3", 4, .3); sound("impact_water.mp3", 3, .55); sound("swordlunge.wav", 3, .3)
+		shake = 2.2 * near(pos)
+		for i = 0, 3 do
+			task.delay(i * .14, function()
+				dome(pos, 48 - i * 4, .9, i % 2 == 0 and RED or BLACK, 0)
+				ring(floor, 50, i % 2 == 0 and BLACK or RED)
+			end)
+		end
+		for wave = 0, 3 do
+			task.delay(wave * .1, function()
+				for i = 1, 9 do
+					local ang = i / 9 * math.pi * 2 + wave
+					local dir = Vector3.new(math.cos(ang), 0, math.sin(ang))
+					bolt(pos, pos + dir * rng:NextNumber(18, 42) + Vector3.new(0, rng:NextNumber(-2, 14), 0), .22, 2.5)
+				end
+			end)
+		end
+		for i = 1, 26 do
+			local dir = CFrame.Angles(0, i / 26 * math.pi * 2, 0).LookVector
+			local len = rng:NextNumber(6, 20)
+			local crack = part(Vector3.new(.25, .1, len), CFrame.lookAt(floor + dir * (len / 2 + 2), floor + dir * 40), BLACK, 0, 3)
+			tween(crack, 3, {Transparency = 1})
+			local rock = part(Vector3.one * rng:NextNumber(.4, 1.4), CFrame.new(floor + dir * rng:NextNumber(4, 14)), Color3.fromRGB(90, 75, 60), 0, 1.3)
+			rock.Material = Enum.Material.Slate
+			tween(rock, 1.3, {CFrame = rock.CFrame * CFrame.new(rng:NextNumber(-3, 3), rng:NextNumber(5, 13), 0) * CFrame.Angles(i, i * 2, 0), Transparency = 1})
+		end
+	end)
+end
+
+local function wave()
+	local start = tool:GetAttribute("WaveCF")
+	if not start or not char then return end
+	title("KAMUSARI")
+	sound("swordlunge.wav", 4, .5); sound("impact_water.mp3", 3, .45)
+	screen(.5, Color3.fromRGB(255, 110, 110), .5)
+	shake = 1.6 * near(start.Position)
+	for i = -10, 10 do
+		local k = 1 - math.abs(i) / 11
+		local cf = start * CFrame.Angles(0, 0, math.rad(55)) * CFrame.new(i * .9, 0, -4 + (i * i) * .06) * CFrame.Angles(0, math.rad(-i * 5), 0)
+		for layer, color in {RED, BLACK} do
+			local p = part(Vector3.new(1.3, .5 * k * (3 - layer), 3.5 * k + .3), cf * CFrame.new(0, 0, layer * 1.2), color, layer == 1 and .15 or 0, .75)
+			tween(p, .75, {CFrame = p.CFrame + start.LookVector * 85, Transparency = 1})
+		end
+	end
+	for i = 1, 14 do
+		task.delay(i * .05, function()
+			local pos = (start * CFrame.new(0, 0, -i * 6)).Position
+			for _ = 1, 2 do bolt(pos, pos + rng:NextUnitVector() * 10, .15, 1.5) end
+			ring(pos - Vector3.new(0, 2.8, 0), 10, RED)
+		end)
+	end
+end
+
+local function unequip()
+	for _, c in conns do c:Disconnect() end
+	table.clear(conns)
+	for _, j in joints do j.Transform = CFrame.identity end
+	if gui then gui:Destroy() end
+	if trail then trail:Destroy() end
+	if aura then aura:Destroy() end
+	RunService:UnbindFromRenderStep(SHAKE_KEY)
+	char, gui, anim, shake = nil, nil, nil, 0
+end
+
+local function makeButton()
+	gui = Instance.new("ScreenGui")
+	gui.ResetOnSpawn = false
+	local b = Instance.new("TextButton", gui)
+	b.AnchorPoint, b.Position, b.Size = Vector2.new(1, .5), UDim2.new(1, -18, .5, 0), UDim2.fromOffset(90, 90)
+	b.BackgroundColor3, b.Font, b.TextSize, b.TextColor3 = Color3.fromRGB(25, 0, 5), Enum.Font.Bangers, 30, Color3.new(1, 1, 1)
+	Instance.new("UICorner", b).CornerRadius = UDim.new(1, 0)
+	local s = Instance.new("UIStroke", b)
+	s.ApplyStrokeMode, s.Color, s.Thickness = Enum.ApplyStrokeMode.Border, RED, 3
+	b.Activated:Connect(function() remote:FireServer("Haki") end)
+	gui.Parent = player.PlayerGui
+	table.insert(conns, UIS.InputBegan:Connect(function(i, typing)
+		if not typing and i.KeyCode == Enum.KeyCode.Q then remote:FireServer("Haki") end
+	end))
+	table.insert(conns, RunService.Heartbeat:Connect(function()
+		local left = (tool:GetAttribute("ReadyAt") or 0) - workspace:GetServerTimeNow()
+		b.Text = left &gt; 0 and tostring(math.ceil(left)) or "HAKI"
+		s.Thickness = left &gt; 0 and 2 or 4 + math.sin(os.clock() * 6) * 2
+		b.BackgroundTransparency = left &gt; 0 and .5 or 0
+	end))
+end
+
+local function equip(c)
+	char, hum, hrp = c, c:FindFirstChildOfClass("Humanoid"), c:FindFirstChild("HumanoidRootPart")
+	if not hrp then char = nil return end
+	table.clear(joints)
+	for _, j in c:GetDescendants() do
+		if j:IsA("Motor6D") or j:IsA("AnimationConstraint") then joints[j.Name] = j end
+	end
+	local a0, a1 = Instance.new("Attachment", handle), Instance.new("Attachment", handle)
+	a0.Position, a1.Position = Vector3.new(0, 1, 0), Vector3.new(0, 5.6, .5)
+	trail = Instance.new("Trail")
+	trail.Attachment0, trail.Attachment1, trail.Lifetime, trail.Enabled = a0, a1, .22, false
+	trail.Color, trail.LightEmission = ColorSequence.new(Color3.new(1, 1, 1), RED), .8
+	trail.Transparency = NumberSequence.new(.1, 1)
+	trail.Parent = handle
+	aura = Instance.new("ParticleEmitter")
+	aura.Texture, aura.Color = "rbxasset://textures/particles/smoke_main.dds", ColorSequence.new(RED, BLACK)
+	aura.Size, aura.Transparency = NumberSequence.new(.7, 0), NumberSequence.new(.4, 1)
+	aura.Rate, aura.Lifetime, aura.Speed = 25, NumberRange.new(.4, .8), NumberRange.new(.5, 1.5)
+	aura.Parent = a1
+	sound("unsheath.wav", 1.5, .9)
+	ring(hrp.Position - Vector3.new(0, 2.8, 0), 14, RED)
+	if Players:GetPlayerFromCharacter(c) == player then
+		makeButton()
+		table.insert(conns, tool.Activated:Connect(function() remote:FireServer("Slash") end))
+	end
+	table.insert(conns, RunService.PreSimulation:Connect(function()
+		if hum.Health &lt;= 0 then unequip() elseif not hum.PlatformStand then stepAnim() end
+	end))
+	table.insert(conns, RunService.RenderStepped:Connect(function()
+		if os.clock() &gt; nextBolt then
+			nextBolt = os.clock() + rng:NextNumber(.3, 1)
+			local p = handle.CFrame:PointToWorldSpace(Vector3.new(0, rng:NextNumber(1, 5), 0))
+			bolt(p, p + rng:NextUnitVector() * 1.8, .04, .4)
+		end
+	end))
+	table.insert(conns, tool:GetAttributeChangedSignal("SwingN"):Connect(slash))
+	table.insert(conns, tool:GetAttributeChangedSignal("HakiN"):Connect(haki))
+	table.insert(conns, tool:GetAttributeChangedSignal("WaveN"):Connect(wave))
+	RunService:BindToRenderStep(SHAKE_KEY, Enum.RenderPriority.Camera.Value + 1, function(dt)
+		if shake &lt; .01 then return end
+		workspace.CurrentCamera.CFrame *= CFrame.new(rng:NextNumber(-shake, shake) * .5, rng:NextNumber(-shake, shake) * .5, 0)
+		shake *= math.exp(-4.5 * dt)
+	end)
+end
+
+local function update()
+	local p = tool.Parent
+	local c = p and p:FindFirstChildOfClass("Humanoid") and p or nil
+	if c == char then return end
+	if char then unequip() end
+	if c then equip(c) end
+end
+tool.AncestryChanged:Connect(update)
+tool.Destroying:Connect(unequip)
+update()
+</ProtectedString></Properties></Item>
+</Item>
+</Item>
+<Item class="ServerScriptService" referent="RBX12"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX11"><Properties><string name="Name">Dummies</string><ProtectedString name="Source">-- دمى للتجربة (احذف هذا السكربت في لعبتك)
+local Players = game:GetService("Players")
+local function spawnDummy(pos)
+	local d = Instance.new("HumanoidDescription")
+	local c = Color3.fromRGB(170, 130, 100)
+	d.HeadColor, d.TorsoColor, d.LeftArmColor, d.RightArmColor, d.LeftLegColor, d.RightLegColor = c, c, c, c, c, c
+	local m = Players:CreateHumanoidModelFromDescription(d, Enum.HumanoidRigType.R15)
+	m.Name = "Dummy"
+	m:PivotTo(CFrame.lookAt(pos, Vector3.new(0, pos.Y, 0)))
+	m.Parent = workspace
+	m.Humanoid.MaxHealth, m.Humanoid.Health = 200, 200
+	m.Humanoid.Died:Connect(function()
+		task.wait(4)
+		m:Destroy()
+		spawnDummy(pos)
+	end)
+end
+for _, x in {-16, -8, 0, 8, 16} do task.spawn(spawnDummy, Vector3.new(x, 4, -24)) end
+</ProtectedString></Properties></Item>
+</Item>
+</roblox>
